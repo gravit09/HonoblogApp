@@ -23,14 +23,28 @@ interface Variables {
 //middleware in hono also can use the function way to write middleware
 app.use("/api/v1/blog/*", async (c, next) => {
   const header = c.req.header("Authorization") || "";
-  const token = header.split(" ")[1];
-  const response = await verify(token, c.env.SECRET);
-  if (!response) {
+  if (!header.startsWith("Bearer ")) {
     c.status(403);
-    return c.json("Unauthorized");
+    return c.json({
+      message: "Unauthorized: Invalid Authorization header format",
+    });
   }
-  c.set("userId", response.id);
-  await next();
+  const token = header.split(" ")[1];
+  try {
+    const response = await verify(token, c.env.SECRET);
+    console.log(response);
+    if (!response) {
+      c.status(403);
+      return c.json({ message: "Unauthorized: Invalid token" });
+    }
+
+    c.set("userId", response.id);
+    await next();
+  } catch (err) {
+    console.error("Token verification error:", err);
+    c.status(500);
+    return c.json({ message: "Internal Server Error" });
+  }
 });
 
 app.post("/api/v1/signup", async (c) => {
@@ -63,6 +77,11 @@ app.post("/api/v1/signup", async (c) => {
     message: "Signup Succesfull",
     jwt: token,
   });
+});
+
+app.get("/api/v1/blog", async (c) => {
+  c.status(200);
+  return c.json("you acceses an protected route");
 });
 
 app.post("/api/v1/signin", async (c) => {
