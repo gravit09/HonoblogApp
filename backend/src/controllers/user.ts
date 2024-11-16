@@ -53,25 +53,46 @@ export const signupHandler = async (c: Context) => {
 };
 
 export const signInHandler = async (c: Context) => {
-  const prisma = new PrismaClient({
-    datasourceUrl: c.env.DATABASE_URL,
-  }).$extends(withAccelerate());
-  const body = await c.req.json();
+  try {
+    const prisma = new PrismaClient({
+      datasourceUrl: c.env.DATABASE_URL,
+    }).$extends(withAccelerate());
 
-  const user = await prisma.user.findUnique({
-    where: {
-      email: body.email,
-      password: body.password,
-    },
-  });
+    const body = await c.req.json();
 
-  if (!user) {
-    c.status(403);
-    return c.json("No user with this credentials found");
+    if (!body.email || !body.password) {
+      c.status(400);
+      return c.json({ message: "Email and password are required" });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        email: body.email,
+      },
+    });
+
+    if (!user) {
+      c.status(403);
+      return c.json({ message: "No user with this email found" });
+    }
+
+    const bcrypt = await import("bcryptjs");
+
+    const isPasswordValid = await bcrypt.compare(body.password, user.password);
+
+    if (!isPasswordValid) {
+      c.status(403);
+      return c.json({ message: "Invalid credentials" });
+    }
+
+    const payload = { name: user.name, id: user.id };
+    const token = await sign(payload, c.env.SECRET);
+
+    c.status(200);
+    return c.json({ message: "Login Successful", token });
+  } catch (error) {
+    console.error(error);
+    c.status(500);
+    return c.json({ message: "Internal Server Error" });
   }
-
-  const payload = { name: user.name, id: user.id };
-  const token = await sign(payload, c.env.SECRET);
-  c.status(200);
-  return c.json({ message: "Login Success", token });
 };
