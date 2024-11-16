@@ -2,6 +2,7 @@ import { Context } from "hono";
 import { sign } from "hono/jwt";
 import { PrismaClient } from "@prisma/client/edge";
 import { withAccelerate } from "@prisma/extension-accelerate";
+import { signinInput } from "@gravit_7/blogchecks";
 
 export const signupHandler = async (c: Context) => {
   try {
@@ -10,10 +11,10 @@ export const signupHandler = async (c: Context) => {
     }).$extends(withAccelerate());
 
     const body = await c.req.json();
-
-    if (!body.name || !body.email || !body.password) {
+    const { success } = signinInput.safeParse(body);
+    if (!success) {
       c.status(400);
-      return c.json({ message: "Name, email, and password are required" });
+      return c.json({ message: "Invalid type of credentials provided" });
     }
 
     const isUser = await prisma.user.findUnique({
